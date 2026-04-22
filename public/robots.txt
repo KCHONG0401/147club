@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /admin
+Disallow: /login
+Disallow: /register
+Disallow: /api/
+Disallow: /_server/
+
+Sitemap: https://147snooker.com/sitemap.xml
