@@ -24,8 +24,8 @@ async function setup() {
   console.log("🚀 开始初始化应用数据...");
 
   // 1. 创建超级管理员账号 (admin147)
-  const adminEmail = "admin147@147snooker.local";
-  const adminPassword = "admin147$$"; // 你可以在这里修改
+  const adminEmail = process.env.ADMIN_EMAIL || "admin147@147snooker.local";
+  const adminPassword = process.env.ADMIN_PASSWORD || "admin147$$"; // 注意: 生产环境请在.env中配置ADMIN_PASSWORD
 
   console.log(`👤 正在创建超管账号: ${adminEmail}...`);
 
