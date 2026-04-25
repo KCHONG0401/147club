@@ -11,7 +11,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { RouteProgress } from "@/components/RouteProgress";
-import { applySecurityHeaders } from "@/lib/security-headers";
 
 import appCss from "../styles.css?url";
 
@@ -38,9 +37,6 @@ function NotFoundComponent() {
 }
 
 export const Route = createRootRoute({
-  loader: async () => {
-    await applySecurityHeaders();
-  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
