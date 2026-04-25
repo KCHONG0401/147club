@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, LogOut, Menu, User, X } from "lucide-react";
+import { LayoutDashboard, LogOut, Menu, Star, User, X } from "lucide-react";
 import { Logo } from "./Logo";
 import { Button } from "./ui/button";
 import { LanguageToggle } from "./LanguageToggle";
@@ -75,13 +75,19 @@ export function Navbar() {
           <LanguageToggle />
           {user ? (
             <>
-              <span className="text-sm text-muted-foreground">
+              <span className="flex items-center gap-2 text-sm text-muted-foreground">
                 {isAdmin && (
-                  <span className="mr-2 rounded bg-gold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gold">
+                  <span className="rounded bg-gold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gold">
                     Admin
                   </span>
                 )}
                 {displayName}
+                {!isAdmin && profile && (
+                  <span className="flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                    <Star className="size-3 fill-primary" />
+                    {profile.points}
+                  </span>
+                )}
               </span>
               <Button variant="ghost" size="sm" onClick={handleSignOut}>
                 <LogOut className="mr-1 size-4" /> {t("nav.logout")}

@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check, ChevronRight, Crown, Sparkles, Star, Trophy, X } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { useAuth } from "@/contexts/AuthContext";
+import { nextLevelInfo, LEVEL_THRESHOLDS } from "@/lib/points";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/membership")({
@@ -97,11 +99,66 @@ const FAQ = [
   { q: "可以中途升级吗？", a: "可以。补差价即可升级，新等级权益从升级当日生效。" },
 ];
 
+const LEVEL_ICON = { bronze: Star, silver: Trophy, gold: Crown } as const;
+const LEVEL_COLOR = {
+  bronze: "text-amber-600",
+  silver: "text-slate-400",
+  gold: "text-gold",
+} as const;
+
 function MembershipPage() {
+  const { user, profile, isAdmin } = useAuth();
+  const next = profile ? nextLevelInfo(profile.level, profile.points) : null;
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="pb-24 pt-28">
+
+        {/* 积分卡片（仅登录会员可见） */}
+        {user && profile && !isAdmin && (
+          <section className="mx-auto mb-10 max-w-2xl px-4 lg:px-8">
+            <div className="rounded-2xl border border-primary/30 bg-gradient-card p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-muted-foreground">我的会员</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    {(() => {
+                      const Icon = LEVEL_ICON[profile.level];
+                      return <Icon className={`size-5 ${LEVEL_COLOR[profile.level]}`} />;
+                    })()}
+                    <span className="text-xl font-bold uppercase">{profile.level}</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs uppercase tracking-widest text-muted-foreground">当前积分</p>
+                  <p className="font-display text-4xl font-bold text-gradient-neon">{profile.points}</p>
+                </div>
+              </div>
+
+              {next ? (
+                <div className="mt-5">
+                  <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>距 {next.label} 还差 <span className="font-semibold text-foreground">{next.needed} 分</span></span>
+                    <span>{Math.round(next.progress)}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted/50">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-500"
+                      style={{ width: `${next.progress}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Silver 门槛 {LEVEL_THRESHOLDS.silver} 分 · Gold 门槛 {LEVEL_THRESHOLDS.gold} 分
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-4 text-sm font-semibold text-gold">🏆 已达最高等级，感谢您的支持！</p>
+              )}
+            </div>
+          </section>
+        )}
+
         <section className="mx-auto max-w-4xl px-4 text-center lg:px-8">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-primary">
             Membership · 会员特权

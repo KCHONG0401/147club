@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { type TimeSlot, type Duration, TIME_SLOTS } from "./snooker-tables";
+import { calcPoints, getLevel } from "./points";
 
 /**
  * 获取特定日期和球台的实际占用时段
@@ -107,7 +108,24 @@ export const submitBooking = createServerFn({ method: "POST" })
       }
     }
 
-    // 2. 插入数据库
+    // 2. 计算积分（会员才有）
+    let pointsAwarded = 0;
+    let currentPoints = 0;
+
+    if (data.userId) {
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("level, points")
+        .eq("id", data.userId)
+        .maybeSingle();
+
+      if (profile) {
+        pointsAwarded = calcPoints(data.totalPrice, profile.level);
+        currentPoints = profile.points;
+      }
+    }
+
+    // 3. 插入数据库
     const startHour = parseInt(data.startSlot.split(":")[0], 10);
     const endHour = (startHour + data.duration) % 24;
     const endSlot = `${String(endHour).padStart(2, "0")}:00`;
@@ -125,9 +143,20 @@ export const submitBooking = createServerFn({ method: "POST" })
       duration_minutes: data.duration * 60,
       total_price: data.totalPrice,
       status: "active",
+      points_awarded: pointsAwarded,
     });
 
     if (error) throw new Error(error.message);
 
-    return { success: true, bookingCode: data.bookingCode };
+    // 4. 更新积分 + 自动升级
+    if (data.userId && pointsAwarded > 0) {
+      const newPoints = currentPoints + pointsAwarded;
+      const newLevel = getLevel(newPoints);
+      await supabaseAdmin
+        .from("profiles")
+        .update({ points: newPoints, level: newLevel })
+        .eq("id", data.userId);
+    }
+
+    return { success: true, bookingCode: data.bookingCode, pointsAwarded };
   });

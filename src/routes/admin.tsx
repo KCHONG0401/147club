@@ -38,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { TABLES, TIME_SLOTS } from "@/lib/snooker-tables";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { getLevel } from "@/lib/points";
 import { saveSiteSetting, type SiteSetting } from "@/hooks/use-site-settings";
 import { AdminAccountsPanel } from "@/components/AdminAccountsPanel";
 import { PostsManager } from "@/components/PostsManager";
@@ -67,6 +68,7 @@ interface BookingRow {
   total_price: number;
   status: "active" | "completed" | "cancelled";
   notes: string | null;
+  points_awarded: number;
 }
 
 interface ProfileRow {
@@ -231,6 +233,32 @@ function AdminPage() {
     }
   }
 
+  async function cancelBooking(b: BookingRow) {
+    if (!confirm(`确定取消 ${b.guest_name} 的预订？积分将被扣回。`)) return;
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: "cancelled" })
+      .eq("id", b.id);
+    if (error) { toast.error(error.message); return; }
+
+    if (b.user_id && b.points_awarded > 0) {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("points")
+        .eq("id", b.user_id)
+        .maybeSingle();
+      if (prof) {
+        const newPoints = Math.max(0, prof.points - b.points_awarded);
+        await supabase
+          .from("profiles")
+          .update({ points: newPoints, level: getLevel(newPoints) })
+          .eq("id", b.user_id);
+      }
+    }
+    toast.success("预订已取消，积分已扣回");
+    setRefreshKey((k) => k + 1);
+  }
+
   async function updateMember(m: ProfileRow, patch: Partial<ProfileRow>) {
     const { error } = await supabase.from("profiles").update(patch).eq("id", m.id);
     if (error) toast.error(error.message);
@@ -375,6 +403,14 @@ function AdminPage() {
                             >
                               <StopCircle className="mr-0.5 size-3" /> 结束
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
+                              onClick={() => cancelBooking(current)}
+                            >
+                              取消
+                            </Button>
                           </div>
                         </>
                       ) : (
@@ -440,22 +476,30 @@ function AdminPage() {
                           RM {Number(b.total_price).toFixed(0)}
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <Badge
-                            variant={b.status === "active" ? "default" : "secondary"}
-                            className={
-                              b.status === "active"
-                                ? "bg-primary/20 text-primary"
-                                : b.status === "completed"
-                                  ? "bg-muted text-muted-foreground"
-                                  : "bg-destructive/20 text-destructive"
-                            }
-                          >
-                            {b.status === "active"
-                              ? "进行中"
-                              : b.status === "completed"
-                                ? "已完成"
-                                : "已取消"}
-                          </Badge>
+                          <div className="flex items-center justify-center gap-2">
+                            <Badge
+                              variant={b.status === "active" ? "default" : "secondary"}
+                              className={
+                                b.status === "active"
+                                  ? "bg-primary/20 text-primary"
+                                  : b.status === "completed"
+                                    ? "bg-muted text-muted-foreground"
+                                    : "bg-destructive/20 text-destructive"
+                              }
+                            >
+                              {b.status === "active" ? "进行中" : b.status === "completed" ? "已完成" : "已取消"}
+                            </Badge>
+                            {b.status === "active" && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-[11px] text-destructive hover:bg-destructive/10"
+                                onClick={() => cancelBooking(b)}
+                              >
+                                取消
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -538,6 +582,9 @@ function AdminPage() {
           <SiteSettingsEditor settings={siteSettings} onUpdate={(next) => setSiteSettings(next)} />
         </section>
 
+        {/* 积分管理 */}
+        <MemberPointsPanel />
+
         <PostsManager />
 
         {isSuperAdmin && <AdminAccountsPanel />}
@@ -545,6 +592,122 @@ function AdminPage() {
 
       <Footer />
     </div>
+  );
+}
+
+function MemberPointsPanel() {
+  const [accountId, setAccountId] = useState("");
+  const [found, setFound] = useState<ProfileRow | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [delta, setDelta] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    if (!accountId.trim()) return;
+    setSearching(true);
+    setFound(null);
+    const { data } = await supabase
+      .from("profiles")
+      .select("id,account_id,name,phone,level,points")
+      .eq("account_id", accountId.toLowerCase().trim())
+      .maybeSingle();
+    setFound(data as ProfileRow | null);
+    if (!data) toast.error("找不到该账号 ID");
+    setSearching(false);
+  }
+
+  async function handleAdjust(e: React.FormEvent) {
+    e.preventDefault();
+    if (!found) return;
+    const pts = parseInt(delta, 10);
+    if (isNaN(pts) || pts === 0) { toast.error("请输入有效积分数字"); return; }
+    setSaving(true);
+    const newPoints = Math.max(0, found.points + pts);
+    const newLevel = getLevel(newPoints);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ points: newPoints, level: newLevel })
+      .eq("id", found.id);
+    if (error) { toast.error(error.message); setSaving(false); return; }
+    toast.success(`已${pts > 0 ? "增加" : "扣除"} ${Math.abs(pts)} 积分${note ? `（${note}）` : ""}`);
+    setFound({ ...found, points: newPoints, level: newLevel });
+    setDelta("");
+    setNote("");
+    setSaving(false);
+  }
+
+  return (
+    <section className="mt-10">
+      <div className="mb-4 flex items-center gap-2">
+        <Award className="size-5 text-primary" />
+        <h2 className="text-xl font-bold">积分管理</h2>
+        <span className="text-xs text-muted-foreground">按账号 ID 查找会员并手动调整积分</span>
+      </div>
+      <Card className="border-border/60 p-5">
+        <form onSubmit={handleSearch} className="flex gap-3">
+          <Input
+            placeholder="输入账号 ID，例如 soon121"
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+            className="max-w-xs"
+          />
+          <Button type="submit" variant="outline" disabled={searching}>
+            {searching ? <Loader2 className="size-4 animate-spin" /> : "搜索"}
+          </Button>
+        </form>
+
+        {found && (
+          <div className="mt-5 rounded-xl border border-border/60 bg-muted/20 p-4">
+            <div className="mb-4 flex flex-wrap items-center gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground">账号 ID</p>
+                <p className="font-mono font-semibold text-primary">{found.account_id}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">姓名</p>
+                <p className="font-medium">{found.name || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">等级</p>
+                <p className="font-semibold uppercase">{found.level}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">当前积分</p>
+                <p className="text-2xl font-bold text-primary">{found.points}</p>
+              </div>
+            </div>
+            <form onSubmit={handleAdjust} className="flex flex-wrap gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">积分变动（正数加，负数扣）</Label>
+                <Input
+                  type="number"
+                  placeholder="例 +50 或 -20"
+                  value={delta}
+                  onChange={(e) => setDelta(e.target.value)}
+                  className="w-40"
+                />
+              </div>
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs">备注（选填）</Label>
+                <Input
+                  placeholder="例：等候补偿、生日礼遇"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                />
+              </div>
+              <div className="flex items-end">
+                <Button type="submit" disabled={saving}>
+                  {saving ? <Loader2 className="mr-1 size-4 animate-spin" /> : null}
+                  确认调整
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
+      </Card>
+    </section>
   );
 }
 
