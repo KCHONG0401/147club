@@ -75,7 +75,10 @@ export function Navbar() {
           <LanguageToggle />
           {user ? (
             <>
-              <span className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Link
+                to={isAdmin ? "/admin" : "/account"}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
                 {isAdmin && (
                   <span className="rounded bg-gold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gold">
                     Admin
@@ -88,7 +91,7 @@ export function Navbar() {
                     {profile.points}
                   </span>
                 )}
-              </span>
+              </Link>
               <Button variant="ghost" size="sm" onClick={handleSignOut}>
                 <LogOut className="mr-1 size-4" /> {t("nav.logout")}
               </Button>

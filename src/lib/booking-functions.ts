@@ -152,10 +152,11 @@ export const submitBooking = createServerFn({ method: "POST" })
     if (data.userId && pointsAwarded > 0) {
       const newPoints = currentPoints + pointsAwarded;
       const newLevel = getLevel(newPoints);
-      await supabaseAdmin
+      const { error: pointsError } = await supabaseAdmin
         .from("profiles")
         .update({ points: newPoints, level: newLevel })
         .eq("id", data.userId);
+      if (pointsError) throw new Error(`积分更新失败：${pointsError.message}`);
     }
 
     return { success: true, bookingCode: data.bookingCode, pointsAwarded };
