@@ -66,7 +66,7 @@ export function BookingFlow() {
   const isMember = !!profile;
   const discount = useMemo(() => {
     if (!profile) return 1.0;
-    const map: Record<string, number> = { bronze: 0.95, silver: 0.9, gold: 0.8 };
+    const map: Record<string, number> = { bronze: 0.9, silver: 0.8, gold: 0.7 };
     return map[profile.level] || 1.0;
   }, [profile]);
   

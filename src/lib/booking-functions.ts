@@ -108,7 +108,9 @@ export const submitBooking = createServerFn({ method: "POST" })
     }
 
     // 2. 插入数据库
-    const endSlot = TIME_SLOTS[startIdx + data.duration] ?? TIME_SLOTS[TIME_SLOTS.length - 1];
+    const startHour = parseInt(data.startSlot.split(":")[0], 10);
+    const endHour = (startHour + data.duration) % 24;
+    const endSlot = `${String(endHour).padStart(2, "0")}:00`;
 
     const { error } = await supabaseAdmin.from("bookings").insert({
       booking_code: data.bookingCode,
