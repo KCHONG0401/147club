@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { z } from "zod";
 import { Eye, EyeOff, Loader2, Lock, User as UserIcon } from "lucide-react";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { AuthShell } from "@/components/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ACCOUNT_ID_REGEX, ACCOUNT_ID_HINT, accountIdToEmail } from "@/lib/account";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 const schema = z.object({
   accountId: z.string().trim().regex(ACCOUNT_ID_REGEX, { message: ACCOUNT_ID_HINT }),
@@ -30,6 +32,8 @@ function LoginPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ accountId?: string; password?: string }>({});
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -47,7 +51,20 @@ function LoginPage() {
       return;
     }
     setErrors({});
+    if (!turnstileToken) {
+      toast.error("请等待人机验证完成");
+      return;
+    }
     setLoading(true);
+    try {
+      await verifyTurnstile({ data: turnstileToken });
+    } catch (err: any) {
+      toast.error(err.message);
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
+      setLoading(false);
+      return;
+    }
     const { error } = await supabase.auth.signInWithPassword({
       email: accountIdToEmail(result.data.accountId),
       password: result.data.password,
@@ -56,6 +73,8 @@ function LoginPage() {
     if (error) {
       const msg = error.message.includes("Invalid login") ? "账号或密码错误" : error.message;
       toast.error(msg);
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
       return;
     }
     toast.success("欢迎回来！");
@@ -117,7 +136,22 @@ function LoginPage() {
           {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
         </div>
 
-        <Button type="submit" variant="hero" size="lg" className="w-full" disabled={loading}>
+        <Turnstile
+          ref={turnstileRef}
+          siteKey="0x4AAAAAADDMXrtlKWEiOKw_"
+          onSuccess={setTurnstileToken}
+          onError={() => setTurnstileToken(null)}
+          onExpire={() => setTurnstileToken(null)}
+          options={{ theme: "dark", size: "flexible" }}
+          className="w-full overflow-hidden rounded-lg"
+        />
+        <Button
+          type="submit"
+          variant="hero"
+          size="lg"
+          className="w-full"
+          disabled={loading || !turnstileToken}
+        >
           {loading ? (
             <>
               <Loader2 className="animate-spin" /> 登录中...

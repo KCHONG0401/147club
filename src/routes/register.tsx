@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { z } from "zod";
 import { Eye, EyeOff, Loader2, Lock, Phone, User as UserIcon } from "lucide-react";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { AuthShell } from "@/components/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import {
   PASSWORD_HINT,
   accountIdToEmail,
 } from "@/lib/account";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 const schema = z.object({
   accountId: z.string().trim().regex(ACCOUNT_ID_REGEX, { message: ACCOUNT_ID_HINT }),
@@ -44,6 +46,8 @@ function RegisterPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -61,7 +65,20 @@ function RegisterPage() {
       return;
     }
     setErrors({});
+    if (!turnstileToken) {
+      toast.error("请等待人机验证完成");
+      return;
+    }
     setLoading(true);
+    try {
+      await verifyTurnstile({ data: turnstileToken });
+    } catch (err: any) {
+      toast.error(err.message);
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
+      setLoading(false);
+      return;
+    }
     const accountIdLower = result.data.accountId.toLowerCase();
     const redirectUrl = `${window.location.origin}/`;
     const { error } = await supabase.auth.signUp({
@@ -169,7 +186,22 @@ function RegisterPage() {
           <span className="text-primary">隐私政策</span>。
         </p>
 
-        <Button type="submit" variant="hero" size="lg" className="w-full" disabled={loading}>
+        <Turnstile
+          ref={turnstileRef}
+          siteKey="0x4AAAAAADDMXrtlKWEiOKw_"
+          onSuccess={setTurnstileToken}
+          onError={() => setTurnstileToken(null)}
+          onExpire={() => setTurnstileToken(null)}
+          options={{ theme: "dark", size: "flexible" }}
+          className="w-full overflow-hidden rounded-lg"
+        />
+        <Button
+          type="submit"
+          variant="hero"
+          size="lg"
+          className="w-full"
+          disabled={loading || !turnstileToken}
+        >
           {loading ? (
             <>
               <Loader2 className="animate-spin" /> 创建中...
