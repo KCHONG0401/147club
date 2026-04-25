@@ -5,4 +5,4 @@ Disallow: /register
 Disallow: /api/
 Disallow: /_server/
 
-Sitemap: https://147snooker.com/sitemap.xml
+Sitemap: https://147club.zf96khoo.workers.dev/sitemap.xml

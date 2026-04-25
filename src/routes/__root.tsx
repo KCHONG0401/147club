@@ -11,6 +11,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { RouteProgress } from "@/components/RouteProgress";
+import { setHeaders } from "@tanstack/react-start/server";
 
 import appCss from "../styles.css?url";
 
@@ -37,18 +38,25 @@ function NotFoundComponent() {
 }
 
 export const Route = createRootRoute({
+  loader: async () => {
+    setHeaders({
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+      "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    });
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "147 Snooker Club" },
+      { name: "description", content: "马来西亚专业斯诺克俱乐部，Standard、Pro、VIP 球台预订，会员特权，赛事体验。" },
+      { property: "og:title", content: "147 Snooker Club" },
+      { property: "og:description", content: "马来西亚顶级斯诺克俱乐部 · 专业球台预订 · 会员特权" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },

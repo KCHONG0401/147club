@@ -101,7 +101,12 @@ export function Footer() {
           <p>
             © {new Date().getFullYear()} 147 Snooker Club. {t("ft.rights")}
           </p>
-          <p>{t("ft.crafted")}</p>
+          <div className="flex items-center gap-4">
+            <Link to="/privacy" className="hover:text-primary transition-colors">
+              隐私政策
+            </Link>
+            <p>{t("ft.crafted")}</p>
+          </div>
         </div>
       </div>
     </footer>
