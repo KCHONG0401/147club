@@ -23,6 +23,7 @@ import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { getBooking } from "@/lib/booking-store";
 import type { BookingDraft } from "@/lib/snooker-tables";
+import { useAuth } from "@/contexts/AuthContext";
 
 const searchSchema = z.object({
   id: z.string().min(1),
@@ -56,11 +57,13 @@ function ConfirmPage() {
   const { id } = Route.useSearch();
   const [booking, setBooking] = useState<BookingDraft | null>(null);
   const [loading, setLoading] = useState(true);
+  const { refreshProfile } = useAuth();
 
   useEffect(() => {
     const b = getBooking(id);
     setBooking(b);
     setLoading(false);
+    refreshProfile();
   }, [id]);
 
   if (loading) {

@@ -38,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { TABLES, TIME_SLOTS } from "@/lib/snooker-tables";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { adminAdjustPoints } from "@/lib/booking-functions";
 import { getLevel } from "@/lib/points";
 import { saveSiteSetting, type SiteSetting } from "@/hooks/use-site-settings";
 import { AdminAccountsPanel } from "@/components/AdminAccountsPanel";
@@ -624,18 +625,17 @@ function MemberPointsPanel() {
     const pts = parseInt(delta, 10);
     if (isNaN(pts) || pts === 0) { toast.error("请输入有效积分数字"); return; }
     setSaving(true);
-    const newPoints = Math.max(0, found.points + pts);
-    const newLevel = getLevel(newPoints);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ points: newPoints, level: newLevel })
-      .eq("id", found.id);
-    if (error) { toast.error(error.message); setSaving(false); return; }
-    toast.success(`已${pts > 0 ? "增加" : "扣除"} ${Math.abs(pts)} 积分${note ? `（${note}）` : ""}`);
-    setFound({ ...found, points: newPoints, level: newLevel });
-    setDelta("");
-    setNote("");
-    setSaving(false);
+    try {
+      const result = await adminAdjustPoints({ data: { profileId: found.id, delta: pts } });
+      toast.success(`已${pts > 0 ? "增加" : "扣除"} ${Math.abs(pts)} 积分${note ? `（${note}）` : ""}`);
+      setFound({ ...found, points: result.points, level: result.level });
+      setDelta("");
+      setNote("");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "积分更新失败");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

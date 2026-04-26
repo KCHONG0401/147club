@@ -161,3 +161,30 @@ export const submitBooking = createServerFn({ method: "POST" })
 
     return { success: true, bookingCode: data.bookingCode, pointsAwarded };
   });
+
+/**
+ * 管理员手动调整会员积分（绕过 RLS）
+ */
+const AdjustPointsSchema = z.object({
+  profileId: z.string().uuid(),
+  delta: z.number().int(),
+});
+
+export const adminAdjustPoints = createServerFn({ method: "POST" })
+  .handler(async ({ data: rawData }) => {
+    const { profileId, delta } = AdjustPointsSchema.parse(rawData);
+    const { data: profile, error: fetchError } = await supabaseAdmin
+      .from("profiles")
+      .select("points")
+      .eq("id", profileId)
+      .maybeSingle();
+    if (fetchError || !profile) throw new Error(fetchError?.message ?? "找不到该用户");
+    const newPoints = Math.max(0, profile.points + delta);
+    const newLevel = getLevel(newPoints);
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .update({ points: newPoints, level: newLevel })
+      .eq("id", profileId);
+    if (error) throw new Error(error.message);
+    return { points: newPoints, level: newLevel };
+  });
