@@ -188,3 +188,52 @@ export const adminAdjustPoints = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { points: newPoints, level: newLevel };
   });
+
+/**
+ * 管理员拉取指定日期全部预订（绕过 RLS）
+ */
+export const adminGetBookings = createServerFn({ method: "GET" })
+  .handler(async ({ data: date }) => {
+    z.string().parse(date);
+    const { data, error } = await supabaseAdmin
+      .from("bookings")
+      .select("*")
+      .eq("booking_date", date as string)
+      .order("start_slot");
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
+
+/**
+ * 管理员取消预订（绕过 RLS）
+ */
+const CancelBookingSchema = z.object({
+  bookingId: z.string().uuid(),
+  userId: z.string().uuid().nullable(),
+  pointsAwarded: z.number().int(),
+});
+
+export const adminCancelBooking = createServerFn({ method: "POST" })
+  .handler(async ({ data: rawData }) => {
+    const { bookingId, userId, pointsAwarded } = CancelBookingSchema.parse(rawData);
+    const { error } = await supabaseAdmin
+      .from("bookings")
+      .update({ status: "cancelled" })
+      .eq("id", bookingId);
+    if (error) throw new Error(error.message);
+    if (userId && pointsAwarded > 0) {
+      const { data: prof } = await supabaseAdmin
+        .from("profiles")
+        .select("points")
+        .eq("id", userId)
+        .maybeSingle();
+      if (prof) {
+        const newPoints = Math.max(0, prof.points - pointsAwarded);
+        await supabaseAdmin
+          .from("profiles")
+          .update({ points: newPoints, level: getLevel(newPoints) })
+          .eq("id", userId);
+      }
+    }
+    return { success: true };
+  });

@@ -38,8 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { TABLES, TIME_SLOTS } from "@/lib/snooker-tables";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { adminAdjustPoints } from "@/lib/booking-functions";
-import { getLevel } from "@/lib/points";
+import { adminAdjustPoints, adminGetBookings, adminCancelBooking } from "@/lib/booking-functions";
 import { saveSiteSetting, type SiteSetting } from "@/hooks/use-site-settings";
 import { AdminAccountsPanel } from "@/components/AdminAccountsPanel";
 import { PostsManager } from "@/components/PostsManager";
@@ -103,8 +102,8 @@ function AdminPage() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const [{ data: b }, { data: m }, { data: s }] = await Promise.all([
-        supabase.from("bookings").select("*").eq("booking_date", today).order("start_slot"),
+      const [b, { data: m }, { data: s }] = await Promise.all([
+        adminGetBookings({ data: today }),
         supabase
           .from("profiles")
           .select("id,account_id,name,phone,level,points")
@@ -116,7 +115,7 @@ function AdminPage() {
           .order("key"),
       ]);
       if (!cancelled) {
-        setBookings((b ?? []) as BookingRow[]);
+        setBookings(b as BookingRow[]);
         setMembers((m ?? []) as ProfileRow[]);
         setSiteSettings((s ?? []) as SiteSetting[]);
         setLoading(false);
@@ -236,28 +235,13 @@ function AdminPage() {
 
   async function cancelBooking(b: BookingRow) {
     if (!confirm(`确定取消 ${b.guest_name} 的预订？积分将被扣回。`)) return;
-    const { error } = await supabase
-      .from("bookings")
-      .update({ status: "cancelled" })
-      .eq("id", b.id);
-    if (error) { toast.error(error.message); return; }
-
-    if (b.user_id && b.points_awarded > 0) {
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("points")
-        .eq("id", b.user_id)
-        .maybeSingle();
-      if (prof) {
-        const newPoints = Math.max(0, prof.points - b.points_awarded);
-        await supabase
-          .from("profiles")
-          .update({ points: newPoints, level: getLevel(newPoints) })
-          .eq("id", b.user_id);
-      }
+    try {
+      await adminCancelBooking({ data: { bookingId: b.id, userId: b.user_id, pointsAwarded: b.points_awarded } });
+      toast.success("预订已取消，积分已扣回");
+      setRefreshKey((k) => k + 1);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "取消失败");
     }
-    toast.success("预订已取消，积分已扣回");
-    setRefreshKey((k) => k + 1);
   }
 
   async function updateMember(m: ProfileRow, patch: Partial<ProfileRow>) {
